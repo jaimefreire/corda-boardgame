@@ -1,23 +1,19 @@
 package net.corda.samples.tictacthor.flows
 
 import co.paralleluniverse.fibers.Suspendable
-import com.r3.corda.lib.accounts.contracts.states.AccountInfo
 import com.r3.corda.lib.accounts.workflows.accountService
 import com.r3.corda.lib.accounts.workflows.flows.RequestKeyForAccount
-import net.corda.samples.tictacthor.accountsUtilities.NewKeyForAccount
-import net.corda.samples.tictacthor.contracts.BoardContract
-import net.corda.samples.tictacthor.states.BoardState
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.StateAndContract
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.flows.*
-import net.corda.core.identity.AnonymousParty
-import net.corda.core.node.StatesToRecord
 import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
-import java.util.concurrent.atomic.AtomicReference
+import net.corda.samples.tictacthor.accountsUtilities.NewKeyForAccount
+import net.corda.samples.tictacthor.contracts.BoardContract
+import net.corda.samples.tictacthor.states.BoardState
 
 /*
 This flow starts a game with another node by creating an new BoardState.
@@ -27,8 +23,10 @@ The request is only denied if the responding node is already participating in a 
 
 @InitiatingFlow
 @StartableByRPC
-class StartGameFlow(val whoAmI: String,
-                    val whereTo: String) : FlowLogic<UniqueIdentifier>() {
+class StartGameFlow(
+    private val whoAmI: String,
+    private val whereTo: String
+) : FlowLogic<UniqueIdentifier>() {
 
     companion object {
         object GENERATING_KEYS : ProgressTracker.Step("Generating Keys for transactions.")
@@ -71,31 +69,31 @@ class StartGameFlow(val whoAmI: String,
                 externalIds = listOf(myAccount.identifier.id)
         )
         val results = serviceHub.vaultService.queryBy(
-                contractStateType = BoardState::class.java,
-                criteria = criteria
+            contractStateType = BoardState::class.java,
+            criteria = criteria
         ).states
 
         progressTracker.currentStep = GENERATING_TRANSACTION
         val notary = serviceHub.networkMapCache.notaryIdentities.first()
         val command = Command(
-                BoardContract.Commands.StartGame(),
-                listOf(myKey,targetAcctAnonymousParty.owningKey))
+            BoardContract.Commands.StartGame(),
+            listOf(myKey, targetAcctAnonymousParty.owningKey)
+        )
 
         val initialBoardState = BoardState(
-                myAccount.identifier,
-                targetAccount.identifier,
-                AnonymousParty(myKey),
-                targetAcctAnonymousParty)
+            playerX = myAccount.identifier,
+            playerO = targetAccount.identifier, me = myAccount.host, competitor = targetAccount.host
+        )
         val stateAndContract = StateAndContract(initialBoardState, BoardContract.ID)
         val txBuilder = TransactionBuilder(notary).withItems(stateAndContract, command)
 
         //Pass along Transaction
         progressTracker.currentStep = SIGNING_TRANSACTION
         txBuilder.verify(serviceHub)
-        val locallySignedTx = serviceHub.signInitialTransaction(txBuilder, listOfNotNull(ourIdentity.owningKey,myKey))
+        val locallySignedTx = serviceHub.signInitialTransaction(txBuilder, listOfNotNull(ourIdentity.owningKey, myKey))
 
         //Collect sigs
-        progressTracker.currentStep =GATHERING_SIGS
+        progressTracker.currentStep = GATHERING_SIGS
         val sessionForAccountToSendTo = initiateFlow(targetAccount.host)
         val accountToMoveToSignature = subFlow(CollectSignatureFlow(locallySignedTx, sessionForAccountToSendTo,
                 listOf(targetAcctAnonymousParty.owningKey)))

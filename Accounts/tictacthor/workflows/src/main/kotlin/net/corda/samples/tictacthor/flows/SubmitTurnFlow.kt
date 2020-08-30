@@ -3,20 +3,18 @@ package net.corda.samples.tictacthor.flows
 import co.paralleluniverse.fibers.Suspendable
 import com.r3.corda.lib.accounts.workflows.accountService
 import com.r3.corda.lib.accounts.workflows.flows.RequestKeyForAccount
-import net.corda.samples.tictacthor.accountsUtilities.NewKeyForAccount
-import net.corda.samples.tictacthor.contracts.BoardContract
-import net.corda.samples.tictacthor.states.BoardState
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.flows.*
-import net.corda.core.identity.AnonymousParty
 import net.corda.core.node.services.Vault
 import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
-import java.util.concurrent.atomic.AtomicReference
+import net.corda.samples.tictacthor.accountsUtilities.NewKeyForAccount
+import net.corda.samples.tictacthor.contracts.BoardContract
+import net.corda.samples.tictacthor.states.BoardState
 
 /*
 This flow attempts submit a turn in the game.
@@ -71,28 +69,30 @@ class SubmitTurnFlow(private val gameId: UniqueIdentifier,
         val targetAcctAnonymousParty = subFlow(RequestKeyForAccount(targetAccount))
 
         val queryCriteria = QueryCriteria.LinearStateQueryCriteria(
-                null,
-                listOf(gameId),
-                Vault.StateStatus.UNCONSUMED, null)
+            null,
+            listOf(gameId),
+            Vault.StateStatus.UNCONSUMED, null
+        )
 
         val inputBoardStateAndRef = serviceHub.vaultService.queryBy<BoardState>(queryCriteria)
-                .states.singleOrNull()?: throw FlowException("GameState with id $gameId not found.")
+            .states.singleOrNull() ?: throw FlowException("GameState with id $gameId not found.")
         val inputBoardState = inputBoardStateAndRef.state.data
 
         // Check that the correct party executed this flow
         if (inputBoardState.getCurrentPlayerParty() != myAccount.identifier) throw FlowException("It's not your turn!")
 
         progressTracker.currentStep = GENERATING_TRANSACTION
-        val command = Command(BoardContract.Commands.SubmitTurn(), listOf(mykey,targetAcctAnonymousParty.owningKey))
-        val outputBoardState = inputBoardState.returnNewBoardAfterMove(Pair(x,y),AnonymousParty(mykey),targetAcctAnonymousParty)
+        val command = Command(BoardContract.Commands.SubmitTurn(), listOf(mykey, targetAcctAnonymousParty.owningKey))
+
+        val outputBoardState = inputBoardState.returnNewBoardAfterMove(Pair(x, y))
 
         val txBuilder = TransactionBuilder(notary)
-                .addOutputState(outputBoardState)
-                .addCommand(command)
-                .addInputState(inputBoardStateAndRef)
+            .addOutputState(outputBoardState)
+            .addCommand(command)
+            .addInputState(inputBoardStateAndRef)
         //Pass along Transaction
         progressTracker.currentStep = SIGNING_TRANSACTION
-        val locallySignedTx = serviceHub.signInitialTransaction(txBuilder, listOf(ourIdentity.owningKey,mykey))
+        val locallySignedTx = serviceHub.signInitialTransaction(txBuilder, listOf(ourIdentity.owningKey, mykey))
 
 
         //Collect sigs

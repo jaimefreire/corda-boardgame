@@ -1,10 +1,11 @@
 package net.corda.samples.tictacthor.contracts
 
-import com.template.states.BoardState
-import com.template.states.Status
 import net.corda.core.contracts.TypeOnlyCommandData
+import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.identity.Party
+import net.corda.samples.tictacthor.states.BoardState
+import net.corda.samples.tictacthor.states.Status
 import net.corda.testing.contracts.DummyState
 import net.corda.testing.core.TestIdentity
 import net.corda.testing.node.MockServices
@@ -23,14 +24,20 @@ class BoardContractEndGameTests {
     lateinit var partyA: Party
     lateinit var partyB: Party
 
+    private val playerO = UniqueIdentifier()
+    private val playerX = UniqueIdentifier()
+
+
     @Before
     fun setup() {
-        partyA = TestIdentity(CordaX500Name("PartyA","London","GB")).party
-        partyB = TestIdentity(CordaX500Name("PartyB","New York","US")).party
-        boardState = BoardState(partyA, partyB)
-        val board: Array<CharArray> = arrayOf(charArrayOf('O', 'O', 'X'),
-                                              charArrayOf('O', 'X', 'X'),
-                                              charArrayOf('O', 'X', 'O'))
+        partyA = TestIdentity(CordaX500Name("PartyA", "London", "GB")).party
+        partyB = TestIdentity(CordaX500Name("PartyB", "New York", "US")).party
+        boardState = BoardState(me = partyA, competitor = partyB, playerO = playerO, playerX = playerX)
+        val board: Array<CharArray> = arrayOf(
+            charArrayOf('O', 'O', 'X'),
+            charArrayOf('O', 'X', 'X'),
+            charArrayOf('O', 'X', 'O')
+        )
         boardState = boardState.copy(status = Status.GAME_OVER, board = board)
         publicKeys = boardState.participants.map {it.owningKey}
     }

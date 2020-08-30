@@ -1,9 +1,10 @@
 package net.corda.samples.tictacthor.contracts
 
-import com.template.states.BoardState
 import net.corda.core.contracts.TypeOnlyCommandData
+import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.identity.Party
+import net.corda.samples.tictacthor.states.BoardState
 import net.corda.testing.contracts.DummyState
 import net.corda.testing.core.TestIdentity
 import net.corda.testing.node.MockServices
@@ -21,13 +22,16 @@ class BoardContractSubmitTurnTests {
     lateinit var publicKeys: List<PublicKey>
     lateinit var partyA: Party
     lateinit var partyB: Party
+    private val playerO = UniqueIdentifier()
+    private val playerX = UniqueIdentifier()
+
 
     @Before
     fun setup() {
-        partyA = TestIdentity(CordaX500Name("PartyA","London","GB")).party
-        partyB = TestIdentity(CordaX500Name("PartyB","New York","US")).party
-        boardState = BoardState(partyA, partyB)
-        publicKeys = boardState.participants.map {it.owningKey}
+        partyA = TestIdentity(CordaX500Name("PartyA", "London", "GB")).party
+        partyB = TestIdentity(CordaX500Name("PartyB", "New York", "US")).party
+        boardState = BoardState(me = partyA, competitor = partyB, playerO = playerO, playerX = playerX)
+        publicKeys = boardState.participants.map { it.owningKey }
     }
 
     @Test

@@ -1,9 +1,10 @@
 package net.corda.samples.tictacthor.contracts
 
-import com.template.states.BoardState
 import net.corda.core.contracts.TypeOnlyCommandData
+import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.identity.Party
+import net.corda.samples.tictacthor.states.BoardState
 import net.corda.testing.contracts.DummyState
 import net.corda.testing.core.TestIdentity
 import net.corda.testing.node.MockServices
@@ -22,12 +23,15 @@ class BoardContractStartGameTests {
     lateinit var partyA: Party
     lateinit var partyB: Party
 
+    private val playerO = UniqueIdentifier()
+    private val playerX = UniqueIdentifier()
+
     @Before
     fun setup() {
-        partyA = TestIdentity(CordaX500Name("PartyA","London","GB")).party
-        partyB = TestIdentity(CordaX500Name("PartyB","New York","US")).party
-        boardState = BoardState(partyA, partyB)
-        publicKeys = boardState.participants.map {it.owningKey}
+        partyA = TestIdentity(CordaX500Name("PartyA", "London", "GB")).party
+        partyB = TestIdentity(CordaX500Name("PartyB", "New York", "US")).party
+        boardState = BoardState(me = partyA, competitor = partyB, playerO = playerO, playerX = playerX)
+        publicKeys = boardState.participants.map { it.owningKey }
     }
 
     @Test
@@ -82,13 +86,21 @@ class BoardContractStartGameTests {
 
     @Test
     fun cannotStartGameWithYourself() {
-        val boardStateSameParty = BoardState(partyA, partyA)
+        val boardStateSameParty = BoardState(playerO = playerO, playerX = playerX, me = partyA, competitor = partyB)
         ledgerServices.ledger {
             transaction {
                 output(BoardContract.ID, boardState)
                 command(listOf(partyA.owningKey, partyB.owningKey), BoardContract.Commands.StartGame())
                 this.verifies()
             }
+        }
+    }
+
+
+    @Test
+    fun canStartGame() {
+        val boardStateSameParty = BoardState(playerO = playerO, playerX = playerO, me = partyA, competitor = partyB)
+        ledgerServices.ledger {
             transaction {
                 output(BoardContract.ID, boardStateSameParty)
                 command(listOf(partyA.owningKey, partyA.owningKey), BoardContract.Commands.StartGame())
@@ -99,7 +111,7 @@ class BoardContractStartGameTests {
 
     @Test
     fun bothPlayersMustSignStartGameTransaction() {
-        val partyC = TestIdentity(CordaX500Name("PartyC","New York","US")).party
+        val partyC = TestIdentity(CordaX500Name("PartyC", "New York", "US")).party
         ledgerServices.ledger {
             transaction {
                 command(listOf(partyA.owningKey, partyB.owningKey), BoardContract.Commands.StartGame())

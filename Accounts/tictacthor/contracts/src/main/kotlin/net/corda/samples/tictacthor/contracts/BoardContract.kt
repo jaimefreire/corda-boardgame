@@ -1,12 +1,13 @@
 package net.corda.samples.tictacthor.contracts
 
+import net.corda.core.contracts.CommandData
+import net.corda.core.contracts.Contract
+import net.corda.core.contracts.UniqueIdentifier
+import net.corda.core.contracts.requireSingleCommand
+import net.corda.core.contracts.requireThat
+import net.corda.core.transactions.LedgerTransaction
 import net.corda.samples.tictacthor.states.BoardState
 import net.corda.samples.tictacthor.states.Status
-import net.corda.core.contracts.*
-import net.corda.core.identity.AnonymousParty
-import net.corda.core.identity.Party
-import net.corda.core.transactions.LedgerTransaction
-import java.util.*
 
 class BoardContract : Contract {
     companion object {
@@ -39,7 +40,7 @@ class BoardContract : Contract {
                  //Signatures
                 "Both participants must sign a StartGame transaction." using (command.signers == outputBoardState.participants.map { it.owningKey })
             }
-            is Commands.SubmitTurn -> requireThat{
+            is Commands.SubmitTurn -> requireThat {
                 // Shape
                 "There should be one input state." using (tx.inputs.size == 1)
                 "There should be one output state." using (tx.outputs.size == 1)
@@ -50,15 +51,19 @@ class BoardContract : Contract {
                 val inputBoardState = tx.inputStates.single() as BoardState
                 val outputBoardState = tx.outputStates.single() as BoardState
                 "Input board must have status GAME_IN_PROGRESS." using (inputBoardState.status == Status.GAME_IN_PROGRESS)
-                "It cannot be the same players turn both in the input board and the output board." using (inputBoardState.isPlayerXTurn.booleanValue() xor outputBoardState.isPlayerXTurn.booleanValue())
-                val playerChar = if (inputBoardState.isPlayerXTurn.booleanValue()) 'X' else 'O'
-                "Not valid board update." using BoardUtils.checkIfValidBoardUpdate(inputBoardState.board, outputBoardState.board, playerChar)
+                "It cannot be the same players turn both in the input board and the output board." using (inputBoardState.isPlayerXTurn xor outputBoardState.isPlayerXTurn)
+                val playerChar = if (inputBoardState.isPlayerXTurn) 'X' else 'O'
+                "Not valid board update." using BoardUtils.checkIfValidBoardUpdate(
+                    inputBoardState.board,
+                    outputBoardState.board,
+                    playerChar
+                )
 
                 // Signatures
                 // TODO: Should only the initiating party sign?
-                //"Both participants must sign a SubmitTurn transaction." using (command.signers == outputBoardState.participants.map { it.owningKey })
+                "Both participants must sign a SubmitTurn transaction." using (command.signers == outputBoardState.participants.map { it.owningKey })
             }
-            is Commands.EndGame -> requireThat{
+            is Commands.EndGame -> requireThat {
                 // Shape
                 "There should be one input state." using (tx.inputs.size == 1)
                 "There should be no output state." using (tx.outputs.isEmpty())
@@ -68,6 +73,9 @@ class BoardContract : Contract {
                 val inputBoardState = tx.inputStates.single() as BoardState
                 "Input board must have status GAME_OVER." using (inputBoardState.status == Status.GAME_OVER)
                 "The game must be over." using (BoardUtils.isGameOver(inputBoardState))
+
+                // Signatures
+                "Both participants must sign a EndGame transaction." using (command.signers == tx.inputs.single().state.data.participants.map { it.owningKey })
             }
         }
     }

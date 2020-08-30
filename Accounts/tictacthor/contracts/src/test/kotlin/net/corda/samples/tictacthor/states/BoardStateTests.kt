@@ -1,23 +1,25 @@
 package net.corda.samples.tictacthor.states
 
-import com.template.contracts.BoardContract
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.identity.CordaX500Name
-import net.corda.core.identity.Party
+import net.corda.samples.tictacthor.contracts.BoardContract
 import net.corda.testing.core.TestIdentity
 import org.junit.Test
 import kotlin.test.assertEquals
 
 class BoardStateTests {
 
+    private val playerO = UniqueIdentifier()
+    private val playerX = UniqueIdentifier()
+
     @Test
     fun hasPlayerOFieldOfCorrectType() {
-        assertEquals(BoardState::class.java.getDeclaredField("playerO").type, Party::class.java)
+        assertEquals(BoardState::class.java.getDeclaredField("playerO").type, UniqueIdentifier::class.java)
     }
 
     @Test
     fun hasPlayerXFieldOfCorrectType() {
-        assertEquals(BoardState::class.java.getDeclaredField("playerX").type, Party::class.java)
+        assertEquals(BoardState::class.java.getDeclaredField("playerX").type, UniqueIdentifier::class.java)
     }
 
     @Test
@@ -27,9 +29,12 @@ class BoardStateTests {
 
     @Test
     fun isPlayerXTurnFieldSetToFalse() {
-        val partyA = TestIdentity(CordaX500Name("PartyA","London","GB")).party
-        val partyB = TestIdentity(CordaX500Name("PartyB","New York","US")).party
-        val boardState = BoardState(partyA, partyB)
+        val partyA = TestIdentity(CordaX500Name("PartyA", "London", "GB")).party
+        val partyB = TestIdentity(CordaX500Name("PartyB", "New York", "US")).party
+        val playerO = UniqueIdentifier()
+        val playerX = UniqueIdentifier()
+
+        val boardState = BoardState(me = partyA, competitor = partyB, playerO = playerO, playerX = playerX)
         assert(!boardState.isPlayerXTurn)
     }
 
@@ -40,9 +45,12 @@ class BoardStateTests {
 
     @Test
     fun hasBoardFieldCorrectlyFormatted() {
-        val partyA = TestIdentity(CordaX500Name("PartyA","London","GB")).party
-        val partyB = TestIdentity(CordaX500Name("PartyB","New York","US")).party
-        val boardState = BoardState(partyA, partyB)
+        val partyA = TestIdentity(CordaX500Name("PartyA", "London", "GB")).party
+        val partyB = TestIdentity(CordaX500Name("PartyB", "New York", "US")).party
+        val playerO = UniqueIdentifier()
+        val playerX = UniqueIdentifier()
+
+        val boardState = BoardState(me = partyA, competitor = partyB, playerO = playerO, playerX = playerX)
         val board = boardState.board
         assert(board.size == 3)
         assert(board[0].size == 3)
@@ -57,8 +65,8 @@ class BoardStateTests {
     @Test
     fun isStatusFieldSetToGameInProgress() {
         val partyA = TestIdentity(CordaX500Name("PartyA","London","GB")).party
-        val partyB = TestIdentity(CordaX500Name("PartyB","New York","US")).party
-        val boardState = BoardState(partyA, partyB)
+        val partyB = TestIdentity(CordaX500Name("PartyB", "New York", "US")).party
+        val boardState = BoardState(me = partyA, competitor = partyB, playerO = playerO, playerX = playerX)
         assert(boardState.status == Status.GAME_IN_PROGRESS)
     }
 
@@ -86,8 +94,8 @@ class BoardStateTests {
     @Test
     fun checkParticipants() {
         val partyA = TestIdentity(CordaX500Name("PartyA","London","GB")).party
-        val partyB = TestIdentity(CordaX500Name("PartyB","New York","US")).party
-        val boardState = BoardState(partyA, partyB)
+        val partyB = TestIdentity(CordaX500Name("PartyB", "New York", "US")).party
+        val boardState = BoardState(me = partyA, competitor = partyB, playerO = playerO, playerX = playerX)
         assert(boardState.participants.size == 2)
         assert(boardState.participants.contains(partyA))
         assert(boardState.participants.contains(partyB))
@@ -96,8 +104,8 @@ class BoardStateTests {
     @Test
     fun checkReturnNewBoardAfterMoveHelperMethod() {
         val partyA = TestIdentity(CordaX500Name("PartyA","London","GB")).party
-        val partyB = TestIdentity(CordaX500Name("PartyB","New York","US")).party
-        val boardState = BoardState(partyA, partyB)
+        val partyB = TestIdentity(CordaX500Name("PartyB", "New York", "US")).party
+        val boardState = BoardState(me = partyA, competitor = partyB, playerO = playerO, playerX = playerX)
 
         assert(boardState.board[0][0] == 'E')
         assert(!boardState.isPlayerXTurn)
@@ -123,7 +131,7 @@ class BoardStateTests {
         val partyA = TestIdentity(CordaX500Name("PartyA","London","GB")).party
         val partyB = TestIdentity(CordaX500Name("PartyB","New York","US")).party
 
-        var boardState = BoardState(partyA, partyB)
+        var boardState = BoardState(me = partyA, competitor = partyB, playerO = playerO, playerX = playerX)
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
         boardState = boardState.returnNewBoardAfterMove(Pair(0,0))
         boardState = boardState.returnNewBoardAfterMove(Pair(1,0))
@@ -135,7 +143,7 @@ class BoardStateTests {
         boardState = boardState.returnNewBoardAfterMove(Pair(0,2))
 
         assert(BoardContract.BoardUtils.isGameOver(boardState))
-        assert(BoardContract.BoardUtils.getWinner(boardState)!! == partyA)
+        assert(BoardContract.BoardUtils.getWinner(boardState)!! == playerO)
     }
 
 
