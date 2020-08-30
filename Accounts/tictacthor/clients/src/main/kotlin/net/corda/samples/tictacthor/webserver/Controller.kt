@@ -1,24 +1,26 @@
 package net.corda.samples.tictacthor.webserver
 
+import net.corda.core.internal.toX500Name
+import net.corda.core.messaging.startFlow
+import net.corda.core.node.NodeInfo
 import net.corda.samples.tictacthor.accountsUtilities.CreateNewAccount
+import net.corda.samples.tictacthor.accountsUtilities.RetrieveMyGameFlow
 import net.corda.samples.tictacthor.accountsUtilities.ShareAccountTo
 import net.corda.samples.tictacthor.flows.EndGameFlow
 import net.corda.samples.tictacthor.flows.StartGameFlow
 import net.corda.samples.tictacthor.flows.SubmitTurnFlow
-import net.corda.samples.tictacthor.accountsUtilities.myGame
-import net.corda.samples.tictacthor.states.BoardState
 import net.corda.samples.tictacthor.states.Status
-import net.corda.core.internal.toX500Name
-import net.corda.core.messaging.startFlow
-import net.corda.core.messaging.vaultQueryBy
-import net.corda.core.node.NodeInfo
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x500.style.BCStyle
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType.APPLICATION_JSON_VALUE
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/") // The paths for HTTP requests are relative to this base path.
@@ -59,7 +61,7 @@ class Controller(rpc: NodeRPCConnection) {
     fun createAccount(@PathVariable acctName:String):ResponseEntity<String> {
         return try {
             val result = proxy.startFlow(::CreateNewAccount,acctName).returnValue.get()
-            ResponseEntity.status(HttpStatus.CREATED).body("Account $acctName Created")
+            ResponseEntity.status(HttpStatus.CREATED).body("Account $acctName Created with result $result")
 
         } catch (e: Exception) {
             ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.message)
@@ -71,7 +73,8 @@ class Controller(rpc: NodeRPCConnection) {
         val matchingPasties = proxy.partiesFromName(team,false)
         return try {
             val result = proxy.startFlow(::ShareAccountTo,whoAmI,matchingPasties.first()).returnValue.get()
-            ResponseEntity.status(HttpStatus.CREATED).body("Game Request has Sent. When $competeWith accepts your challenge, the game will start!")
+            ResponseEntity.status(HttpStatus.CREATED)
+                .body("Game Request has Sent with result $result. When $competeWith accepts your challenge, the game will start!")
 
         } catch (e: Exception) {
             ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.message)
@@ -84,7 +87,8 @@ class Controller(rpc: NodeRPCConnection) {
         val matchingPasties = proxy.partiesFromName(team,false)
         return try {
             val result = proxy.startFlow(::ShareAccountTo,whoAmI,matchingPasties.first()).returnValue.get()
-            ResponseEntity.status(HttpStatus.CREATED).body("I, $whoAmI accepts $competeWith's challenge. Let's play!")
+            ResponseEntity.status(HttpStatus.CREATED)
+                .body("I, $whoAmI accepts $competeWith's challenge with result $result. Let's play!")
 
         } catch (e: Exception) {
             ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.message)
@@ -111,7 +115,8 @@ class Controller(rpc: NodeRPCConnection) {
         return try {
             val gameId = proxy.startFlow(::StartGameFlow,whoAmI,competeWith).returnValue.get()!!
             val submitTurn = proxy.startFlow(::SubmitTurnFlow, gameId, whoAmI,competeWith,x,y).returnValue.get()!!
-            ResponseEntity.status(HttpStatus.CREATED).body("Game Id Created: $gameId" + "$whoAmI made the first move on position [$x,$y]")
+            ResponseEntity.status(HttpStatus.CREATED)
+                .body("Game Id Created: $gameId with result $submitTurn; the player $whoAmI made the first move on position [$x,$y]")
 
         } catch (e: Exception) {
             ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.message)
@@ -136,14 +141,16 @@ class Controller(rpc: NodeRPCConnection) {
             8 -> {x=2; y=2}
         }
         return try {
-            val gameId = proxy.startFlow(::myGame,whoAmI).returnValue.get().linearId
-            val submitTurn = proxy.startFlow(::SubmitTurnFlow, gameId, whoAmI,competeWith,x,y).returnValue.get()!!
+            val gameId = proxy.startFlow(::RetrieveMyGameFlow, whoAmI).returnValue.get().linearId
+            val submitTurn = proxy.startFlow(::SubmitTurnFlow, gameId, whoAmI, competeWith, x, y).returnValue.get()!!
 
             if(isGameOver(whoAmI)){
-                proxy.startFlow(::EndGameFlow, gameId, whoAmI,competeWith).returnValue.get()
-                ResponseEntity.status(HttpStatus.CREATED).body("$whoAmI made the move on position [$x,$y], and Game Over")
+                proxy.startFlow(::EndGameFlow, gameId, whoAmI, competeWith).returnValue.get()
+                ResponseEntity.status(HttpStatus.CREATED)
+                    .body("$whoAmI made the move on position [$x,$y], and Game Over with result $submitTurn")
             }else{
-                ResponseEntity.status(HttpStatus.CREATED).body("$whoAmI made the move on position [$x,$y]")
+                ResponseEntity.status(HttpStatus.CREATED)
+                    .body("$whoAmI made the move on position [$x,$y] with result $submitTurn")
             }
         } catch (e: Exception) {
             ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.message)
@@ -154,7 +161,7 @@ class Controller(rpc: NodeRPCConnection) {
     private fun isGameOver(whoAmI: String):Boolean{
         //If the game is over, the Status should be a null variable
         //So if the status returned is GAME_IN_PROGRESS, it means the game is not over.
-        val gameStatus = proxy.startFlow(::myGame,whoAmI).returnValue.get().status
+        val gameStatus = proxy.startFlow(::RetrieveMyGameFlow, whoAmI).returnValue.get().status
         if(gameStatus == Status.GAME_IN_PROGRESS){
             return false
         }
