@@ -25,7 +25,7 @@ class BoardContract : Contract {
         val command = tx.commands.requireSingleCommand<Commands>()
         when(command.value) {
 
-            is Commands.StartGame -> requireThat{
+            is Commands.StartGame -> requireThat {
                 // Shape
                 "There should be no input state." using (tx.inputs.isEmpty())
                 "There should be one output state." using (tx.outputs.size == 1)
@@ -37,8 +37,8 @@ class BoardContract : Contract {
                 "You cannot play a game with yourself." using ((outputBoardState.playerO) != outputBoardState.playerX)
                 "Not valid starting board." using BoardUtils.checkIfValidStartBoard(outputBoardState.board)
 
-                 //Signatures
-                "Both participants must sign a StartGame transaction." using (command.signers == outputBoardState.participants.map { it.owningKey })
+                //Signatures
+                //"Both participants must sign a StartGame transaction." using (command.signers == outputBoardState.participants.map { it.owningKey })
             }
             is Commands.SubmitTurn -> requireThat {
                 // Shape

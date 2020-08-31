@@ -3,10 +3,9 @@ package net.corda.samples.tictacthor.flows
 import co.paralleluniverse.fibers.Suspendable
 import com.r3.corda.lib.accounts.workflows.accountService
 import com.r3.corda.lib.accounts.workflows.flows.RequestKeyForAccount
-import net.corda.samples.tictacthor.accountsUtilities.NewKeyForAccount
-import net.corda.samples.tictacthor.contracts.BoardContract
-import net.corda.samples.tictacthor.states.BoardState
-import net.corda.core.contracts.*
+import net.corda.core.contracts.Command
+import net.corda.core.contracts.UniqueIdentifier
+import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
 import net.corda.core.node.services.Vault
 import net.corda.core.node.services.queryBy
@@ -14,6 +13,9 @@ import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
+import net.corda.samples.tictacthor.accountsUtilities.NewKeyForAccount
+import net.corda.samples.tictacthor.contracts.BoardContract
+import net.corda.samples.tictacthor.states.BoardState
 
 /*
 This flow ends a game by removing the BoardState from the ledger.
@@ -73,7 +75,11 @@ class EndGameFlowResponder(val counterpartySession: FlowSession) : FlowLogic<Sig
     @Suspendable
     override fun call(): SignedTransaction {
         val signedTransactionFlow = object : SignTransactionFlow(counterpartySession) {
-            override fun checkTransaction(stx: SignedTransaction) = requireThat {}
+            override fun checkTransaction(stx: SignedTransaction) {
+                requireThat {
+                    stx.tx.outputStates.isEmpty()
+                }
+            }
         }
         val txWeJustSigned = subFlow(signedTransactionFlow)
         return subFlow(ReceiveFinalityFlow(counterpartySession, txWeJustSigned.id))

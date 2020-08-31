@@ -4,6 +4,7 @@ import co.paralleluniverse.fibers.Suspendable
 import com.r3.corda.lib.accounts.workflows.accountService
 import com.r3.corda.lib.accounts.workflows.flows.RequestKeyForAccount
 import net.corda.core.contracts.Command
+import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.flows.*
 import net.corda.core.node.services.Vault
@@ -12,7 +13,6 @@ import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
-import net.corda.samples.tictacthor.accountsUtilities.NewKeyForAccount
 import net.corda.samples.tictacthor.contracts.BoardContract
 import net.corda.samples.tictacthor.states.BoardState
 
@@ -59,11 +59,8 @@ class SubmitTurnFlow(private val gameId: UniqueIdentifier,
     @Suspendable
     override fun call(): String {
 
-        val notary = serviceHub.networkMapCache.notaryIdentities.first()
-
         //loading game board
         val myAccount = accountService.accountInfo(whoAmI).single().state.data
-        val mykey = subFlow(NewKeyForAccount(myAccount.identifier.id)).owningKey
 
         val targetAccount = accountService.accountInfo(whereTo).single().state.data
         val targetAcctAnonymousParty = subFlow(RequestKeyForAccount(targetAccount))
@@ -82,30 +79,43 @@ class SubmitTurnFlow(private val gameId: UniqueIdentifier,
         if (inputBoardState.getCurrentPlayerParty() != myAccount.identifier) throw FlowException("It's not your turn!")
 
         progressTracker.currentStep = GENERATING_TRANSACTION
-        val command = Command(BoardContract.Commands.SubmitTurn(), listOf(mykey, targetAcctAnonymousParty.owningKey))
-
         val outputBoardState = inputBoardState.returnNewBoardAfterMove(Pair(x, y))
 
-        val txBuilder = TransactionBuilder(notary)
-            .addOutputState(outputBoardState)
-            .addCommand(command)
-            .addInputState(inputBoardStateAndRef)
         //Pass along Transaction
         progressTracker.currentStep = SIGNING_TRANSACTION
-        val locallySignedTx = serviceHub.signInitialTransaction(txBuilder, listOf(ourIdentity.owningKey, mykey))
-
+        val signedTx = verifyAndSign(transaction(inputBoardStateAndRef, outputBoardState))
 
         //Collect sigs
-        progressTracker.currentStep =GATHERING_SIGS
-        val sessionForAccountToSendTo = initiateFlow(targetAccount.host)
-        val accountToMoveToSignature = subFlow(CollectSignatureFlow(locallySignedTx, sessionForAccountToSendTo,
-                targetAcctAnonymousParty.owningKey))
-        val signedByCounterParty = locallySignedTx.withAdditionalSignatures(accountToMoveToSignature)
-
-        progressTracker.currentStep =FINALISING_TRANSACTION
-        val stx = subFlow(FinalityFlow(signedByCounterParty, listOf(sessionForAccountToSendTo).filter { it.counterparty != ourIdentity }))
-        subFlow(SyncGame(outputBoardState.linearId.toString(),targetAccount.host))
+        progressTracker.currentStep = GATHERING_SIGS
+        val signed = collectSignatures(outputBoardState, transaction = signedTx)
+        progressTracker.currentStep = FINALISING_TRANSACTION
+        val stx = subFlow(FinalityFlow(signed))
+        subFlow(SyncGame(outputBoardState.linearId.toString(), targetAccount.host))
         return "rxId: ${stx.id}"
+    }
+
+    @Suspendable
+    private fun collectSignatures(initialBoardState: BoardState, transaction: SignedTransaction): SignedTransaction {
+        val sessions = (initialBoardState.participants - ourIdentity).map { initiateFlow(it) }.toSet()
+        return subFlow(CollectSignaturesFlow(transaction, sessions))
+    }
+
+    private fun transaction(inputBoardStateAndRef: StateAndRef<BoardState>, outputState: BoardState) =
+        TransactionBuilder(notary()).apply {
+            addInputState(inputBoardStateAndRef)
+            addOutputState(outputState, BoardContract.ID)
+            addCommand(
+                Command(
+                    BoardContract.Commands.SubmitTurn(),
+                    inputBoardStateAndRef.state.data.participants.map { it.owningKey })
+            )
+        }
+
+    private fun notary() = serviceHub.networkMapCache.notaryIdentities.first()
+
+    private fun verifyAndSign(transaction: TransactionBuilder): SignedTransaction {
+        transaction.verify(serviceHub)
+        return serviceHub.signInitialTransaction(transaction)
     }
 }
 

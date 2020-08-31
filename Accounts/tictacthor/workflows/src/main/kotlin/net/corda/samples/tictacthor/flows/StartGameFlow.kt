@@ -2,10 +2,10 @@ package net.corda.samples.tictacthor.flows
 
 import co.paralleluniverse.fibers.Suspendable
 import com.r3.corda.lib.accounts.workflows.accountService
-import com.r3.corda.lib.accounts.workflows.flows.RequestKeyForAccount
 import net.corda.core.contracts.Command
-import net.corda.core.contracts.StateAndContract
+import net.corda.core.contracts.Requirements.using
 import net.corda.core.contracts.UniqueIdentifier
+import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
 import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.transactions.SignedTransaction
@@ -14,6 +14,7 @@ import net.corda.core.utilities.ProgressTracker
 import net.corda.samples.tictacthor.accountsUtilities.NewKeyForAccount
 import net.corda.samples.tictacthor.contracts.BoardContract
 import net.corda.samples.tictacthor.states.BoardState
+
 
 /*
 This flow starts a game with another node by creating an new BoardState.
@@ -42,12 +43,12 @@ class StartGameFlow(
         }
 
         fun tracker() = ProgressTracker(
-                GENERATING_KEYS,
-                GENERATING_TRANSACTION,
-                VERIFYING_TRANSACTION,
-                SIGNING_TRANSACTION,
-                GATHERING_SIGS,
-                FINALISING_TRANSACTION
+            GENERATING_KEYS,
+            GENERATING_TRANSACTION,
+            VERIFYING_TRANSACTION,
+            SIGNING_TRANSACTION,
+            GATHERING_SIGS,
+            FINALISING_TRANSACTION
         )
     }
 
@@ -59,48 +60,64 @@ class StartGameFlow(
         //Generate key for transaction
         progressTracker.currentStep = GENERATING_KEYS
         val myAccount = accountService.accountInfo(whoAmI).single().state.data
-        val myKey = subFlow(NewKeyForAccount(myAccount.identifier.id)).owningKey
+
+        val myHost = myAccount.host
+        val other = subFlow(NewKeyForAccount(myAccount.identifier.id))
+        val myKey = other.owningKey
 
         val targetAccount = accountService.accountInfo(whereTo).single().state.data
-        val targetAcctAnonymousParty = subFlow(RequestKeyForAccount(targetAccount))
+        val targetAccountKey = subFlow(NewKeyForAccount(targetAccount.identifier.id)).owningKey
+
 
         // If this node is already participating in an active game, decline the request to start a new one
         val criteria = QueryCriteria.VaultQueryCriteria(
-                externalIds = listOf(myAccount.identifier.id)
+            externalIds = listOf(myAccount.identifier.id)
         )
         val results = serviceHub.vaultService.queryBy(
             contractStateType = BoardState::class.java,
             criteria = criteria
         ).states
 
-        progressTracker.currentStep = GENERATING_TRANSACTION
-        val notary = serviceHub.networkMapCache.notaryIdentities.first()
-        val command = Command(
-            BoardContract.Commands.StartGame(),
-            listOf(myKey, targetAcctAnonymousParty.owningKey)
-        )
+        requireThat { results.isEmpty() }
 
+        progressTracker.currentStep = GENERATING_TRANSACTION
         val initialBoardState = BoardState(
+            isPlayerXTurn = true,
             playerX = myAccount.identifier,
-            playerO = targetAccount.identifier, me = myAccount.host, competitor = targetAccount.host
+            playerO = targetAccount.identifier,
+            me = myAccount.host,
+            competitor = targetAccount.host
         )
-        val stateAndContract = StateAndContract(initialBoardState, BoardContract.ID)
-        val txBuilder = TransactionBuilder(notary).withItems(stateAndContract, command)
 
         //Pass along Transaction
         progressTracker.currentStep = SIGNING_TRANSACTION
-        txBuilder.verify(serviceHub)
-        val locallySignedTx = serviceHub.signInitialTransaction(txBuilder, listOfNotNull(ourIdentity.owningKey, myKey))
+        val signedTx = verifyAndSign(transaction(initialBoardState))
 
         //Collect sigs
         progressTracker.currentStep = GATHERING_SIGS
-        val sessionForAccountToSendTo = initiateFlow(targetAccount.host)
-        val accountToMoveToSignature = subFlow(CollectSignatureFlow(locallySignedTx, sessionForAccountToSendTo,
-                listOf(targetAcctAnonymousParty.owningKey)))
-        val signedByCounterParty = locallySignedTx.withAdditionalSignatures(accountToMoveToSignature)
-        progressTracker.currentStep =FINALISING_TRANSACTION
-        val stx = subFlow(FinalityFlow(signedByCounterParty, listOf(sessionForAccountToSendTo).filter { it.counterparty != ourIdentity }))
+        val signed = collectSignatures(initialBoardState, transaction = signedTx)
+        progressTracker.currentStep = FINALISING_TRANSACTION
+        val stx = subFlow(FinalityFlow(signed))
+
         return initialBoardState.linearId
+    }
+
+    @Suspendable
+    private fun collectSignatures(initialBoardState: BoardState, transaction: SignedTransaction): SignedTransaction {
+        val sessions = (initialBoardState.participants - ourIdentity).map { initiateFlow(it) }.toSet()
+        return subFlow(CollectSignaturesFlow(transaction, sessions))
+    }
+
+    private fun transaction(initialBoardState: BoardState) = TransactionBuilder(notary()).apply {
+        addOutputState(initialBoardState, BoardContract.ID)
+        addCommand(Command(BoardContract.Commands.StartGame(), initialBoardState.participants.map { it.owningKey }))
+    }
+
+    private fun notary() = serviceHub.networkMapCache.notaryIdentities.first()
+
+    private fun verifyAndSign(transaction: TransactionBuilder): SignedTransaction {
+        transaction.verify(serviceHub)
+        return serviceHub.signInitialTransaction(transaction)
     }
 }
 
@@ -108,13 +125,14 @@ class StartGameFlow(
 @InitiatedBy(StartGameFlow::class)
 class StartGameFlowResponder(val counterpartySession: FlowSession) : FlowLogic<Unit>() {
     @Suspendable
-    override fun call(){
+    override fun call() {
         subFlow(object : SignTransactionFlow(counterpartySession) {
             @Throws(FlowException::class)
             override fun checkTransaction(stx: SignedTransaction) {
-                // Custom Logic to validate transaction.
+                val output = stx.tx.outputs.single().data
+                "This must be a TicTacToe transaction." using (output is BoardState)
             }
         })
         subFlow(ReceiveFinalityFlow(counterpartySession))
-        }
+    }
 }

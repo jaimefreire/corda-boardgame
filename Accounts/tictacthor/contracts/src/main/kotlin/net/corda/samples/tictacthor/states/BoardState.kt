@@ -26,7 +26,9 @@ data class BoardState(
     override val linearId: UniqueIdentifier = UniqueIdentifier()
 ): LinearState {
 
-    override val participants: List<AbstractParty> = listOfNotNull(me,competitor).map {it}
+    override val participants: List<AbstractParty> = listOfNotNull(me, competitor).map { it }
+
+    fun isGameOver() = status != Status.GAME_IN_PROGRESS
 
     // Returns the party of the current player
     fun getCurrentPlayerParty(): UniqueIdentifier = if (isPlayerXTurn) playerX else playerO

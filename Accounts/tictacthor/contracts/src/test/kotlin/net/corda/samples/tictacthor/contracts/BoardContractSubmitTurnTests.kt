@@ -63,8 +63,8 @@ class BoardContractSubmitTurnTests {
             }
             transaction {
                 input(BoardContract.ID, boardState)
-                input(BoardContract.ID, DummyState())
-                output(BoardContract.ID, boardState.returnNewBoardAfterMove(Pair(0,0)))
+                input(BoardContract.ID, boardState.copy(isPlayerXTurn = true))
+                output(BoardContract.ID, boardState.returnNewBoardAfterMove(Pair(0, 0)))
                 command(publicKeys, BoardContract.Commands.SubmitTurn())
                 this `fails with` "There should be one input state."
             }
@@ -82,8 +82,8 @@ class BoardContractSubmitTurnTests {
             }
             transaction {
                 input(BoardContract.ID, boardState)
-                output(BoardContract.ID, boardState.returnNewBoardAfterMove(Pair(0,0)))
-                output(BoardContract.ID, DummyState())
+                output(BoardContract.ID, boardState.returnNewBoardAfterMove(Pair(0, 0)))
+                output(BoardContract.ID, boardState.returnNewBoardAfterMove(Pair(1, 0)))
                 command(publicKeys, BoardContract.Commands.SubmitTurn())
                 this `fails with` "There should be one output state."
             }
@@ -100,8 +100,8 @@ class BoardContractSubmitTurnTests {
                 this.verifies()
             }
             transaction {
+                output(BoardContract.ID, boardState.returnNewBoardAfterMove(Pair(0, 0)))
                 input(BoardContract.ID, DummyState())
-                output(BoardContract.ID, boardState.returnNewBoardAfterMove(Pair(0,0)))
                 command(publicKeys, BoardContract.Commands.SubmitTurn())
                 this `fails with` "The input state should be of type BoardState."
             }
