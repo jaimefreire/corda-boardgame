@@ -60,8 +60,8 @@ class SubmitTurnFlowTests {
         val theirAccounts = nodeB.startFlow(OurAccounts())
         mockNetwork.runNetwork()
 
-        val a3 = nodeA.startFlow(ShareAccountInfo(ourAccounts.get().single(), listOf(partyB)))
-        val b3 = nodeB.startFlow(ShareAccountInfo(theirAccounts.get().single(), listOf(partyA)))
+        val s1 = nodeA.startFlow(ShareAccountInfo(ourAccounts.get().single(), listOf(partyB)))
+        val s2 = nodeB.startFlow(ShareAccountInfo(theirAccounts.get().single(), listOf(partyA)))
         mockNetwork.runNetwork()
 
         val gameId = nodeA.startFlow(StartGameFlow(whoAmI = partyA.name.toString(), whereTo = partyB.name.toString()))
@@ -72,6 +72,9 @@ class SubmitTurnFlowTests {
 
         a1.get()
         a2.get()
+        s1.get()
+        s2.get()
+
         gameId.get()
 
         val ptx = future.getOrThrow()
