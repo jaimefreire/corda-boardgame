@@ -1,8 +1,6 @@
 package net.corda.samples.tictacthor.flows
 
 import co.paralleluniverse.fibers.Suspendable
-import com.r3.corda.lib.accounts.workflows.accountService
-import com.r3.corda.lib.accounts.workflows.flows.RequestKeyForAccount
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.contracts.requireThat
@@ -12,7 +10,6 @@ import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
-import net.corda.samples.tictacthor.accountsUtilities.NewKeyForAccount
 import net.corda.samples.tictacthor.contracts.BoardContract
 import net.corda.samples.tictacthor.states.BoardState
 
@@ -23,66 +20,55 @@ This flow is started through an request from the frontend once the GAME_OVER sta
 
 @InitiatingFlow
 @StartableByRPC
-class EndGameFlow(private val gameId: UniqueIdentifier,
-                  private val whoAmI: String,
-                  private val whereTo:String) : FlowLogic<SignedTransaction>() {
+class EndGameFlow(
+    private val gameId: UniqueIdentifier,
+    private val whoAmI: String,
+    private val whereTo: String
+) : FlowLogic<SignedTransaction>() {
 
-    // TODO: progressTracker
-    override val progressTracker = ProgressTracker()
+    companion object {
+        object GENERATING_KEYS : ProgressTracker.Step("Generating Keys for transactions.")
+        object GENERATING_TRANSACTION : ProgressTracker.Step("Generating transaction for between accounts")
+        object VERIFYING_TRANSACTION : ProgressTracker.Step("Verifying contract constraints.")
+        object SIGNING_TRANSACTION : ProgressTracker.Step("Signing transaction with our private key.")
+        object GATHERING_SIGS : ProgressTracker.Step("Gathering the counterparty's signature.") {
+            override fun childProgressTracker() = CollectSignaturesFlow.tracker()
+        }
+
+        object FINALISING_TRANSACTION : ProgressTracker.Step("Obtaining notary signature and recording transaction.") {
+            override fun childProgressTracker() = FinalityFlow.tracker()
+        }
+
+        fun tracker() = ProgressTracker(
+            GENERATING_KEYS,
+            GENERATING_TRANSACTION,
+            VERIFYING_TRANSACTION,
+            SIGNING_TRANSACTION,
+            GATHERING_SIGS,
+            FINALISING_TRANSACTION
+        )
+    }
+
+    override val progressTracker = tracker()
 
     @Suspendable
     override fun call(): SignedTransaction {
-
-        val notary = serviceHub.networkMapCache.notaryIdentities.first()
-
-        //loading game board
-        val myAccount = accountService.accountInfo(whoAmI).single().state.data
-        val mykey = subFlow(NewKeyForAccount(myAccount.identifier.id)).owningKey
-
-        val targetAccount = accountService.accountInfo(whereTo).single().state.data
-        val targetAcctAnonymousParty = subFlow(RequestKeyForAccount(targetAccount))
-
 
         val queryCriteria = QueryCriteria.LinearStateQueryCriteria(uuid = listOf(gameId.id))
         val boardStateRefToEnd = serviceHub.vaultService.queryBy<BoardState>(queryCriteria)
             .states.singleOrNull() ?: throw FlowException("GameState with id $gameId not found.")
 
-        val command = Command(BoardContract.Commands.EndGame(), listOf(mykey, targetAcctAnonymousParty.owningKey))
-
-        val txBuilder = TransactionBuilder(notary)
-            .addInputState(boardStateRefToEnd)
-            .addCommand(command)
-        txBuilder.verify(serviceHub)
-
         //Pass along Transaction
-        progressTracker.currentStep = StartGameFlow.Companion.SIGNING_TRANSACTION
-        val signedTx = verifyAndSign(txBuilder)
+        progressTracker.currentStep = SIGNING_TRANSACTION
+        val signedTx = verifyAndSign(transaction(boardStateRefToEnd.state.data))
 
         //Collect sigs
-        progressTracker.currentStep = StartGameFlow.Companion.GATHERING_SIGS
+        progressTracker.currentStep = GATHERING_SIGS
         val signed = collectSignatures(boardStateRefToEnd.state.data, transaction = signedTx)
-        progressTracker.currentStep = StartGameFlow.Companion.FINALISING_TRANSACTION
+        progressTracker.currentStep = FINALISING_TRANSACTION
 
         return subFlow(FinalityFlow(signed))
 
-
-        //self sign
-        val locallySignedTx = serviceHub.signInitialTransaction(txBuilder, listOf(ourIdentity.owningKey, mykey))
-        //counter sign
-        val sessionForAccountToSendTo = initiateFlow(targetAccount.host)
-        val accountToMoveToSignature = subFlow(
-            CollectSignatureFlow(
-                locallySignedTx, sessionForAccountToSendTo,
-                targetAcctAnonymousParty.owningKey
-            )
-        )
-        val signedByCounterParty = locallySignedTx.withAdditionalSignatures(accountToMoveToSignature)
-
-        return subFlow(
-            FinalityFlow(
-                signedByCounterParty,
-                listOf(sessionForAccountToSendTo).filter { it.counterparty != ourIdentity })
-        )
     }
 
     @Suspendable
@@ -93,7 +79,7 @@ class EndGameFlow(private val gameId: UniqueIdentifier,
 
     private fun transaction(initialBoardState: BoardState) = TransactionBuilder(notary()).apply {
         addOutputState(initialBoardState, BoardContract.ID)
-        addCommand(Command(BoardContract.Commands.StartGame(), initialBoardState.participants.map { it.owningKey }))
+        addCommand(Command(BoardContract.Commands.EndGame(), initialBoardState.participants.map { it.owningKey }))
     }
 
     private fun notary() = serviceHub.networkMapCache.notaryIdentities.first()
