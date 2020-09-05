@@ -2,6 +2,7 @@ package net.corda.samples.tictacthor.flows
 
 import co.paralleluniverse.fibers.Suspendable
 import com.r3.corda.lib.accounts.workflows.accountService
+import com.r3.corda.lib.accounts.workflows.flows.RequestKeyForAccount
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.Requirements.using
 import net.corda.core.contracts.UniqueIdentifier
@@ -60,13 +61,10 @@ class StartGameFlow(
         //Generate key for transaction
         progressTracker.currentStep = GENERATING_KEYS
         val myAccount = accountService.accountInfo(whoAmI).single().state.data
+        val otherAccount = accountService.accountInfo(whereTo).single().state.data
 
-        val myHost = myAccount.host
-        val other = subFlow(NewKeyForAccount(myAccount.identifier.id))
-        val myKey = other.owningKey
-
-        val targetAccount = accountService.accountInfo(whereTo).single().state.data
-        val targetAccountKey = subFlow(NewKeyForAccount(targetAccount.identifier.id)).owningKey
+        val mykey = subFlow(NewKeyForAccount(myAccount.identifier.id))
+        val targetKey = subFlow(RequestKeyForAccount(otherAccount))
 
 
         // If this node is already participating in an active game, decline the request to start a new one
@@ -83,10 +81,10 @@ class StartGameFlow(
         progressTracker.currentStep = GENERATING_TRANSACTION
         val initialBoardState = BoardState(
             isPlayerXTurn = true,
-            playerX = myAccount.identifier,
-            playerO = targetAccount.identifier,
+            playerX = UniqueIdentifier(mykey.toString()),
+            playerO = UniqueIdentifier(targetKey.toString()),
             me = myAccount.host,
-            competitor = targetAccount.host
+            competitor = otherAccount.host
         )
 
         //Pass along Transaction
@@ -97,15 +95,14 @@ class StartGameFlow(
         progressTracker.currentStep = GATHERING_SIGS
         val signed = collectSignatures(initialBoardState, transaction = signedTx)
         progressTracker.currentStep = FINALISING_TRANSACTION
-        val stx = subFlow(FinalityFlow(signed))
-
+        println("Signed: $signed")
         return initialBoardState.linearId
     }
 
     @Suspendable
     private fun collectSignatures(initialBoardState: BoardState, transaction: SignedTransaction): SignedTransaction {
         val sessions = (initialBoardState.participants - ourIdentity).map { initiateFlow(it) }.toSet()
-        return subFlow(CollectSignaturesFlow(transaction, sessions))
+        return subFlow(FinalityFlow(subFlow(CollectSignaturesFlow(transaction, sessions)), sessions))
     }
 
     private fun transaction(initialBoardState: BoardState) = TransactionBuilder(notary()).apply {

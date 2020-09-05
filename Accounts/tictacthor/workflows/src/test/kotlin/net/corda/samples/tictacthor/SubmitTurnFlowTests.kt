@@ -28,7 +28,6 @@ class SubmitTurnFlowTests {
                 TestCordapp.findCordapp("com.r3.corda.lib.accounts.contracts"),
                 TestCordapp.findCordapp("com.r3.corda.lib.accounts.workflows"),
                 TestCordapp.findCordapp("com.r3.corda.lib.accounts.workflows.services")
-
             )
         )
     )

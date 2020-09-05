@@ -7,7 +7,6 @@ import net.corda.core.contracts.Command
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
-import net.corda.core.node.services.Vault
 import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.transactions.SignedTransaction
@@ -44,29 +43,64 @@ class EndGameFlow(private val gameId: UniqueIdentifier,
         val targetAcctAnonymousParty = subFlow(RequestKeyForAccount(targetAccount))
 
 
-        val queryCriteria = QueryCriteria.LinearStateQueryCriteria(
-                null,
-                listOf(gameId),
-                Vault.StateStatus.UNCONSUMED, null)
+        val queryCriteria = QueryCriteria.LinearStateQueryCriteria(uuid = listOf(gameId.id))
         val boardStateRefToEnd = serviceHub.vaultService.queryBy<BoardState>(queryCriteria)
-                .states.singleOrNull()?:throw FlowException("GameState with id $gameId not found.")
+            .states.singleOrNull() ?: throw FlowException("GameState with id $gameId not found.")
 
-        val command = Command(BoardContract.Commands.EndGame(),listOf(mykey,targetAcctAnonymousParty.owningKey))
+        val command = Command(BoardContract.Commands.EndGame(), listOf(mykey, targetAcctAnonymousParty.owningKey))
 
         val txBuilder = TransactionBuilder(notary)
-                .addInputState(boardStateRefToEnd)
-                .addCommand(command)
+            .addInputState(boardStateRefToEnd)
+            .addCommand(command)
         txBuilder.verify(serviceHub)
 
+        //Pass along Transaction
+        progressTracker.currentStep = StartGameFlow.Companion.SIGNING_TRANSACTION
+        val signedTx = verifyAndSign(txBuilder)
+
+        //Collect sigs
+        progressTracker.currentStep = StartGameFlow.Companion.GATHERING_SIGS
+        val signed = collectSignatures(boardStateRefToEnd.state.data, transaction = signedTx)
+        progressTracker.currentStep = StartGameFlow.Companion.FINALISING_TRANSACTION
+
+        return subFlow(FinalityFlow(signed))
+
+
         //self sign
-        val locallySignedTx = serviceHub.signInitialTransaction(txBuilder, listOf(ourIdentity.owningKey,mykey))
+        val locallySignedTx = serviceHub.signInitialTransaction(txBuilder, listOf(ourIdentity.owningKey, mykey))
         //counter sign
         val sessionForAccountToSendTo = initiateFlow(targetAccount.host)
-        val accountToMoveToSignature = subFlow(CollectSignatureFlow(locallySignedTx, sessionForAccountToSendTo,
-                targetAcctAnonymousParty.owningKey))
+        val accountToMoveToSignature = subFlow(
+            CollectSignatureFlow(
+                locallySignedTx, sessionForAccountToSendTo,
+                targetAcctAnonymousParty.owningKey
+            )
+        )
         val signedByCounterParty = locallySignedTx.withAdditionalSignatures(accountToMoveToSignature)
 
-        return subFlow(FinalityFlow(signedByCounterParty, listOf(sessionForAccountToSendTo).filter { it.counterparty != ourIdentity }))
+        return subFlow(
+            FinalityFlow(
+                signedByCounterParty,
+                listOf(sessionForAccountToSendTo).filter { it.counterparty != ourIdentity })
+        )
+    }
+
+    @Suspendable
+    private fun collectSignatures(initialBoardState: BoardState, transaction: SignedTransaction): SignedTransaction {
+        val sessions = (initialBoardState.participants - ourIdentity).map { initiateFlow(it) }.toSet()
+        return subFlow(CollectSignaturesFlow(transaction, sessions))
+    }
+
+    private fun transaction(initialBoardState: BoardState) = TransactionBuilder(notary()).apply {
+        addOutputState(initialBoardState, BoardContract.ID)
+        addCommand(Command(BoardContract.Commands.StartGame(), initialBoardState.participants.map { it.owningKey }))
+    }
+
+    private fun notary() = serviceHub.networkMapCache.notaryIdentities.first()
+
+    private fun verifyAndSign(transaction: TransactionBuilder): SignedTransaction {
+        transaction.verify(serviceHub)
+        return serviceHub.signInitialTransaction(transaction)
     }
 }
 

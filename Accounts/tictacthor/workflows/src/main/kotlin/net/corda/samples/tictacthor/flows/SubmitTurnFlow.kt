@@ -76,7 +76,7 @@ class SubmitTurnFlow(private val gameId: UniqueIdentifier,
         val inputBoardState = inputBoardStateAndRef.state.data
 
         // Check that the correct party executed this flow
-        if (inputBoardState.getCurrentPlayerParty() != myAccount.identifier) throw FlowException("It's not your turn!")
+        if (inputBoardState.getCurrentPlayerParty() != myAccount.host) throw FlowException("It's not your turn!")
 
         progressTracker.currentStep = GENERATING_TRANSACTION
         val outputBoardState = inputBoardState.returnNewBoardAfterMove(Pair(x, y))

@@ -84,20 +84,20 @@ class BoardContract : Contract {
     class BoardUtils {
         companion object {
 
-            val potentialWins: List<Set<Pair<Int, Int>>> = listOf(
-                    // Columns
-                    setOf(Pair(0,0), Pair(0,1), Pair(0,2)),
-                    setOf(Pair(1,0), Pair(1,1), Pair(1,2)),
-                    setOf(Pair(2,0), Pair(2,1), Pair(2,2)),
+            private val potentialWins: List<Set<Pair<Int, Int>>> = listOf(
+                // Columns
+                setOf(Pair(0, 0), Pair(0, 1), Pair(0, 2)),
+                setOf(Pair(1, 0), Pair(1, 1), Pair(1, 2)),
+                setOf(Pair(2, 0), Pair(2, 1), Pair(2, 2)),
 
-                    // Rows
-                    setOf(Pair(0,0), Pair(1,0), Pair(2,0)),
-                    setOf(Pair(0,1), Pair(1,1), Pair(2,1)),
-                    setOf(Pair(0,2), Pair(1,2), Pair(2,2)),
+                // Rows
+                setOf(Pair(0, 0), Pair(1, 0), Pair(2, 0)),
+                setOf(Pair(0, 1), Pair(1, 1), Pair(2, 1)),
+                setOf(Pair(0, 2), Pair(1, 2), Pair(2, 2)),
 
-                    // Diagonal
-                    setOf(Pair(0,0), Pair(1,1), Pair(2,2)),
-                    setOf(Pair(2,0), Pair(1,1), Pair(0,2))
+                // Diagonal
+                setOf(Pair(0, 0), Pair(1, 1), Pair(2, 2)),
+                setOf(Pair(2, 0), Pair(1, 1), Pair(0, 2))
             )
 
             fun checkIfValidStartBoard(board: Array<CharArray>): Boolean {
