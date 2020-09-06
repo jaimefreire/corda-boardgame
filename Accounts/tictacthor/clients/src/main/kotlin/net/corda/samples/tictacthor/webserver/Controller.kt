@@ -9,6 +9,7 @@ import net.corda.samples.tictacthor.accountsUtilities.ShareAccountTo
 import net.corda.samples.tictacthor.flows.EndGameFlow
 import net.corda.samples.tictacthor.flows.StartGameFlow
 import net.corda.samples.tictacthor.flows.SubmitTurnFlow
+import net.corda.samples.tictacthor.states.BoardState
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x500.style.BCStyle
 import org.slf4j.LoggerFactory
@@ -50,7 +51,7 @@ class Controller(rpc: NodeRPCConnection) {
      * Returns all parties registered with the [NetworkMapService]. These names can be used to look up identities
      * using the [IdentityService].
      */
-    @GetMapping(value = ["peers"], produces = [APPLICATION_JSON_VALUE])
+    @GetMapping(value = ["getNodes"], produces = [APPLICATION_JSON_VALUE])
     fun getPeers(): Map<String, List<String>> {
         return mapOf("peers" to proxy.networkMapSnapshot()
             .filter { isNotary(it).not() && isMe(it).not() && isNetworkMap(it).not() }
@@ -92,9 +93,9 @@ class Controller(rpc: NodeRPCConnection) {
         @PathVariable team: String,
         @PathVariable competeWith: String
     ): ResponseEntity<String> {
-        val matchingPasties = proxy.partiesFromName(team, false)
+        val matchingParties = proxy.partiesFromName(team, false)
         return try {
-            val result = proxy.startFlow(::ShareAccountTo, whoAmI, matchingPasties.first()).returnValue.get()
+            val result = proxy.startFlow(::ShareAccountTo, whoAmI, matchingParties.first()).returnValue.get()
             ResponseEntity.status(HttpStatus.CREATED)
                 .body("I, $whoAmI accepts $competeWith's challenge with result $result. Let's play!")
 
@@ -193,7 +194,7 @@ class Controller(rpc: NodeRPCConnection) {
             val submitTurn = proxy.startFlow(::SubmitTurnFlow, gameId, whoAmI, competeWith, x, y).returnValue.get()!!
 
             if (isGameOver(whoAmI)) {
-                proxy.startFlow(::EndGameFlow, gameId, whoAmI, competeWith).returnValue.get()
+                proxy.startFlow(::EndGameFlow, gameId).returnValue.get()
                 ResponseEntity.status(HttpStatus.CREATED)
                     .body("$whoAmI made the move on position [$x,$y], and Game Over with result $submitTurn")
             } else {
@@ -205,6 +206,15 @@ class Controller(rpc: NodeRPCConnection) {
         }
     }
 
+    /**
+     * Returns the node's name.
+     */
+    @GetMapping(value = ["getBoard"], produces = [APPLICATION_JSON_VALUE])
+    fun getBoard(): Array<CharArray>
+    {
+        val me = proxy.nodeInfo().legalIdentities.first().name
+        return proxy.startFlow(::RetrieveMyGameFlow, me.toX500Name().toString()).returnValue.get().board
+    }
 
     private fun isGameOver(whoAmI: String): Boolean =
         proxy.startFlow(::RetrieveMyGameFlow, whoAmI).returnValue.get().isGameOver()

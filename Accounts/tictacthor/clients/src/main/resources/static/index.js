@@ -45,7 +45,7 @@ function setUpChooseOpponentWindow() {
     })
 
     // Show window if game not already in progress
-    axios.get('get-board').then(response => {})
+    axios.get('getBoard').then(response => {})
     .catch (error => {
         showChooseOpponentWindow();
     });
@@ -53,7 +53,7 @@ function setUpChooseOpponentWindow() {
 
 
 function showChooseOpponentWindow() {
-    axios.get('get-nodes').then(function (result) {
+    axios.get('getNodes').then(function (result) {
         var nodesArray = Array.from(result.data);
         var select = document.getElementById("options");
         var select2 = document.getElementById("options2");
@@ -115,7 +115,7 @@ function startUpdateCheck() {
 
 // Checks if there has been an update on the board and if so updates frontend elements to display changes
 function updateCheck() {
-    axios.get('get-board').then(function (result) {
+    axios.get('getBoard').then(function (result) {
 
         var array = Array.from(result.data);
         if (array.length == 0) { // no active game
@@ -143,7 +143,7 @@ function resetPage() {
     setIdentityLabel();
     setIsMyTurnLabel();
     var buttons = document.getElementsByClassName("tic");
-    axios.get('get-board').then(function (result) {
+    axios.get('getBoard').then(function (result) {
         var array = Array.from(result.data);
         for (var i=0; i<array.length; i++) {
             if (array[i] == 'E') buttons[i].innerHTML = ' ';

@@ -22,6 +22,7 @@ class RetrieveMyGameFlow(private val whoAmI: String) : FlowLogic<BoardState>() {
     override fun call(): BoardState {
 
         val myAccount = accountService.accountInfo(whoAmI).single().state.data
+        println ("myAccount: $myAccount")
         val criteria = QueryCriteria.VaultQueryCriteria(
             externalIds = listOf(myAccount.identifier.id)
         )

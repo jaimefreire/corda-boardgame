@@ -63,7 +63,6 @@ class SubmitTurnFlow(private val gameId: UniqueIdentifier,
         val myAccount = accountService.accountInfo(whoAmI).single().state.data
 
         val targetAccount = accountService.accountInfo(whereTo).single().state.data
-        val targetAcctAnonymousParty = subFlow(RequestKeyForAccount(targetAccount))
 
         val queryCriteria = QueryCriteria.LinearStateQueryCriteria(
             null,
@@ -91,7 +90,7 @@ class SubmitTurnFlow(private val gameId: UniqueIdentifier,
         progressTracker.currentStep = FINALISING_TRANSACTION
         val stx = subFlow(FinalityFlow(signed))
 
-        subFlow(SyncGame(outputBoardState.linearId.toString(), targetAccount.host))
+        subFlow(SyncGameFlow(outputBoardState.linearId.toString(), targetAccount.host))
         return "rxId: ${stx.id}"
     }
 

@@ -21,11 +21,7 @@ This flow is started through an request from the frontend once the GAME_OVER sta
 
 @InitiatingFlow
 @StartableByRPC
-class EndGameFlow(
-    private val gameId: UniqueIdentifier,
-    private val whoAmI: String,
-    private val whereTo: String
-) : FlowLogic<SignedTransaction>() {
+class EndGameFlow(private val gameId: UniqueIdentifier) : FlowLogic<SignedTransaction>() {
 
     companion object {
         object GENERATING_KEYS : ProgressTracker.Step("Generating Keys for transactions.")

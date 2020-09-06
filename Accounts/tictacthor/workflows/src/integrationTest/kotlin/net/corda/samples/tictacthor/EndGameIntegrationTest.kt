@@ -133,7 +133,7 @@ class EndGameIntegrationTest {
         )
 
         // End Game
-        val futureEndGame = nodeA.startFlow(EndGameFlow(gameId, partyA.name.toString(), partyB.name.toString()))
+        val futureEndGame = nodeA.startFlow(EndGameFlow(gameId))
         mockNetwork.runNetwork()
         val end = futureEndGame.get()
 
@@ -234,7 +234,7 @@ class EndGameIntegrationTest {
         assertEquals(nodeB.services.vaultService.queryBy<BoardState>(queryCriteria).states.single().state.data.status, Status.GAME_OVER)
 
         // End Game
-        nodeA.startFlow(EndGameFlow(gameId, partyA.name.toString(), partyB.name.toString()))
+        nodeA.startFlow(EndGameFlow(gameId))
         mockNetwork.runNetwork()
 
         assert(nodeA.services.vaultService.queryBy<BoardState>(queryCriteria).states.isEmpty())
@@ -330,7 +330,7 @@ class EndGameIntegrationTest {
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         // Move #2
-        val future = nodeA.startFlow(EndGameFlow(gameId, partyA.name.toString(), partyB.name.toString()))
+        val future = nodeA.startFlow(EndGameFlow(gameId))
         mockNetwork.runNetwork()
 
         var exception = Exception()

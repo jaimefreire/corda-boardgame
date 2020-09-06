@@ -21,9 +21,9 @@ class ShareAccountTo(
     override fun call(): String {
 
         //Create a new account
-        val AllmyAccounts = accountService.ourAccounts()
-        val SharedAccount = AllmyAccounts.single { it.state.data.name == acctNameShared }.state.data.identifier.id
-        accountService.shareAccountInfoWithParty(SharedAccount,shareTo)
+        val allMyAccounts = accountService.ourAccounts()
+        val sharedAccount = allMyAccounts.single { it.state.data.name == acctNameShared }.state.data.identifier.id
+        accountService.shareAccountInfoWithParty(sharedAccount,shareTo)
 
         return "Shared " + acctNameShared + " with " + shareTo.name.organisation
     }
