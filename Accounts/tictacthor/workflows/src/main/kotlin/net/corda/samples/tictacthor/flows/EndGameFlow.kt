@@ -2,6 +2,7 @@ package net.corda.samples.tictacthor.flows
 
 import co.paralleluniverse.fibers.Suspendable
 import net.corda.core.contracts.Command
+import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
@@ -60,7 +61,7 @@ class EndGameFlow(
 
         //Pass along Transaction
         progressTracker.currentStep = SIGNING_TRANSACTION
-        val signedTx = verifyAndSign(transaction(boardStateRefToEnd.state.data))
+        val signedTx = verifyAndSign(transaction(boardStateRefToEnd))
 
         //Collect sigs
         progressTracker.currentStep = GATHERING_SIGS
@@ -77,9 +78,9 @@ class EndGameFlow(
         return subFlow(CollectSignaturesFlow(transaction, sessions))
     }
 
-    private fun transaction(initialBoardState: BoardState) = TransactionBuilder(notary()).apply {
-        addOutputState(initialBoardState, BoardContract.ID)
-        addCommand(Command(BoardContract.Commands.EndGame(), initialBoardState.participants.map { it.owningKey }))
+    private fun transaction(stateAndRef: StateAndRef<BoardState>) = TransactionBuilder(notary()).apply {
+        addInputState(stateAndRef)
+        addCommand(Command(BoardContract.Commands.EndGame(), stateAndRef.state.data.participants.map { it.owningKey }))
     }
 
     private fun notary() = serviceHub.networkMapCache.notaryIdentities.first()
