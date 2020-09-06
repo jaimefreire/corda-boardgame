@@ -90,6 +90,7 @@ class SubmitTurnFlow(private val gameId: UniqueIdentifier,
         val signed = collectSignatures(outputBoardState, transaction = signedTx)
         progressTracker.currentStep = FINALISING_TRANSACTION
         val stx = subFlow(FinalityFlow(signed))
+
         subFlow(SyncGame(outputBoardState.linearId.toString(), targetAccount.host))
         return "rxId: ${stx.id}"
     }

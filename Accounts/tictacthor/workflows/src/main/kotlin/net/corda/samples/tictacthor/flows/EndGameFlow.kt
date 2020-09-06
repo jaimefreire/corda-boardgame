@@ -78,9 +78,9 @@ class EndGameFlow(
         return subFlow(CollectSignaturesFlow(transaction, sessions))
     }
 
-    private fun transaction(stateAndRef: StateAndRef<BoardState>) = TransactionBuilder(notary()).apply {
-        addInputState(stateAndRef)
-        addCommand(Command(BoardContract.Commands.EndGame(), stateAndRef.state.data.participants.map { it.owningKey }))
+    private fun transaction(boardStateRefToEnd: StateAndRef<BoardState>) = TransactionBuilder(notary()).apply {
+        addInputState(boardStateRefToEnd)
+        addCommand(Command(BoardContract.Commands.EndGame(), boardStateRefToEnd.state.data.participants.map { it.owningKey }))
     }
 
     private fun notary() = serviceHub.networkMapCache.notaryIdentities.first()

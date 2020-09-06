@@ -150,6 +150,23 @@ class EndGameIntegrationTest {
         val partyA = nodeA.info.chooseIdentity()
         val partyB = nodeB.info.chooseIdentity()
 
+        val a1 = nodeA.startFlow(CreateAccount(partyA.name.toString()))
+        val a2 = nodeB.startFlow(CreateAccount(partyB.name.toString()))
+        mockNetwork.runNetwork()
+        a1.get()
+        a2.get()
+
+        val ourAccounts = nodeA.startFlow(OurAccounts())
+        val theirAccounts = nodeB.startFlow(OurAccounts())
+        mockNetwork.runNetwork()
+
+        val s1 = nodeA.startFlow(ShareAccountInfo(ourAccounts.get().single(), listOf(partyB)))
+        val s2 = nodeB.startFlow(ShareAccountInfo(theirAccounts.get().single(), listOf(partyA)))
+        mockNetwork.runNetwork()
+        s1.get()
+        s2.get()
+
+
         // Setup Game
         val futureWithGameState = nodeA.startFlow(StartGameFlow(partyB.name.toString(), partyA.name.toString()))
         mockNetwork.runNetwork()
@@ -157,47 +174,47 @@ class EndGameIntegrationTest {
         var boardState = getBoardState(nodeB)
 //        assertEquals(boardState.playerO, partyA)
 //        assertEquals(boardState.playerX, partyB)
-        assertEquals(partyA, boardState.getCurrentPlayerParty())
+        assertEquals(partyB, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         //Move #1
-        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyA.name.toString(), partyB.name.toString(), 0, 0)
-        assertEquals(partyB, boardState.getCurrentPlayerParty())
+        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyB.name.toString(), partyA.name.toString(), 0, 0)
+        assertEquals(partyA, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         // Move #2
         boardState = makeMoveAndGetNewBoardState(nodeB, gameId, partyA.name.toString(), partyB.name.toString(), 1, 0)
-        assertEquals(partyA, boardState.getCurrentPlayerParty())
+        assertEquals(partyB, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         // Move #3
-        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyA.name.toString(), partyB.name.toString(), 2, 0)
-        assertEquals(partyB, boardState.getCurrentPlayerParty())
+        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyB.name.toString(), partyA.name.toString(), 2, 0)
+        assertEquals(partyA, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         // Move #4
         boardState = makeMoveAndGetNewBoardState(nodeB, gameId, partyA.name.toString(), partyB.name.toString(), 0, 2)
-        assertEquals(partyA, boardState.getCurrentPlayerParty())
+        assertEquals(partyB, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
          //Move #5
-        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyA.name.toString(), partyB.name.toString(), 0, 1)
-        assertEquals(partyB, boardState.getCurrentPlayerParty())
+        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyB.name.toString(), partyA.name.toString(), 0, 1)
+        assertEquals(partyA, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         // Move #6
         boardState = makeMoveAndGetNewBoardState(nodeB, gameId, partyA.name.toString(), partyB.name.toString(), 1, 1)
-        assertEquals(partyA, boardState.getCurrentPlayerParty())
+        assertEquals(partyB, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         // Move #7
-        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyA.name.toString(), partyB.name.toString(), 1, 2)
-        assertEquals(partyB, boardState.getCurrentPlayerParty())
+        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyB.name.toString(), partyA.name.toString(), 1, 2)
+        assertEquals(partyA, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         // Move #8
         boardState = makeMoveAndGetNewBoardState(nodeB, gameId, partyA.name.toString(), partyB.name.toString(), 2, 2)
-        assertEquals(partyA, boardState.getCurrentPlayerParty())
+        assertEquals(partyB, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         val queryCriteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(boardState.linearId))
@@ -209,8 +226,8 @@ class EndGameIntegrationTest {
         assertEquals(nodeB.services.vaultService.queryBy<BoardState>(queryCriteria).states.single().state.data.status, Status.GAME_IN_PROGRESS)
 
         // Move #9
-        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyA.name.toString(), partyB.name.toString(), 2, 1)
-        assertEquals(partyB, boardState.getCurrentPlayerParty())
+        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyB.name.toString(), partyA.name.toString(), 2, 1)
+        assertEquals(partyA, boardState.getCurrentPlayerParty())
         assert(BoardContract.BoardUtils.isGameOver(boardState))
 
         assertEquals(nodeA.services.vaultService.queryBy<BoardState>(queryCriteria).states.single().state.data.status, Status.GAME_OVER)
@@ -227,25 +244,42 @@ class EndGameIntegrationTest {
 
     @Test
     fun `invalid move test`() {
+
         val partyA = nodeA.info.chooseIdentity()
         val partyB = nodeB.info.chooseIdentity()
+
+        val a1 = nodeA.startFlow(CreateAccount(partyA.name.toString()))
+        val a2 = nodeB.startFlow(CreateAccount(partyB.name.toString()))
+        mockNetwork.runNetwork()
+        a1.get()
+        a2.get()
+
+        val ourAccounts = nodeA.startFlow(OurAccounts())
+        val theirAccounts = nodeB.startFlow(OurAccounts())
+        mockNetwork.runNetwork()
+
+        val s1 = nodeA.startFlow(ShareAccountInfo(ourAccounts.get().single(), listOf(partyB)))
+        val s2 = nodeB.startFlow(ShareAccountInfo(theirAccounts.get().single(), listOf(partyA)))
+        mockNetwork.runNetwork()
+        s1.get()
+        s2.get()
 
         // Setup Game
         val futureWithGameState = nodeA.startFlow(StartGameFlow(partyB.name.toString(), partyA.name.toString()))
         mockNetwork.runNetwork()
         var boardState = getBoardState(nodeA)
 
-        assertEquals(partyA, boardState.getCurrentPlayerParty())
+        assertEquals(partyB, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         val gameId = futureWithGameState.get()
         //Move #1
-        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyA.name.toString(), partyB.name.toString(), 0, 0)
-        assertEquals(partyB, boardState.getCurrentPlayerParty())
+        boardState = makeMoveAndGetNewBoardState(nodeB, gameId, partyB.name.toString(), partyA.name.toString(), 0, 0)
+        assertEquals(partyA, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
         // Move #2
-        val future = nodeB.startFlow(SubmitTurnFlow(gameId, partyA.name.toString(), partyB.name.toString(), 0, 0))
+        val future = nodeA.startFlow(SubmitTurnFlow(gameId, partyA.name.toString(), partyB.name.toString(), 0, 0))
         mockNetwork.runNetwork()
 
         var exception = Exception()
@@ -264,21 +298,39 @@ class EndGameIntegrationTest {
         val partyA = nodeA.info.chooseIdentity()
         val partyB = nodeB.info.chooseIdentity()
 
+        val a1 = nodeA.startFlow(CreateAccount(partyA.name.toString()))
+        val a2 = nodeB.startFlow(CreateAccount(partyB.name.toString()))
+        mockNetwork.runNetwork()
+        a1.get()
+        a2.get()
+
+        val ourAccounts = nodeA.startFlow(OurAccounts())
+        val theirAccounts = nodeB.startFlow(OurAccounts())
+        mockNetwork.runNetwork()
+
+        val s1 = nodeA.startFlow(ShareAccountInfo(ourAccounts.get().single(), listOf(partyB)))
+        val s2 = nodeB.startFlow(ShareAccountInfo(theirAccounts.get().single(), listOf(partyA)))
+        mockNetwork.runNetwork()
+        s1.get()
+        s2.get()
+
+
+
         // Setup Game
         val futureWithGameState = nodeA.startFlow(StartGameFlow(partyB.name.toString(), partyA.name.toString()))
         mockNetwork.runNetwork()
         val gameId = futureWithGameState.get()
         var boardState = getBoardState(nodeB)
-        assertEquals(partyA, boardState.getCurrentPlayerParty())
-        assert(!BoardContract.BoardUtils.isGameOver(boardState))
-
-        // Move #1
-        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyA.name.toString(), partyB.name.toString(), 0, 0)
         assertEquals(partyB, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
+        // Move #1
+        boardState = makeMoveAndGetNewBoardState(nodeB, gameId, partyB.name.toString(), partyA.name.toString(), 0, 0)
+        assertEquals(partyA, boardState.getCurrentPlayerParty())
+        assert(!BoardContract.BoardUtils.isGameOver(boardState))
+
         // Move #2
-        val future = nodeB.startFlow(EndGameFlow(gameId, partyA.name.toString(), partyB.name.toString()))
+        val future = nodeA.startFlow(EndGameFlow(gameId, partyA.name.toString(), partyB.name.toString()))
         mockNetwork.runNetwork()
 
         var exception = Exception()
@@ -294,24 +346,40 @@ class EndGameIntegrationTest {
 
     @Test
     fun `moves out of order`() {
+
         val partyA = nodeA.info.chooseIdentity()
         val partyB = nodeB.info.chooseIdentity()
 
+        val a1 = nodeA.startFlow(CreateAccount(partyA.name.toString()))
+        val a2 = nodeB.startFlow(CreateAccount(partyB.name.toString()))
+        mockNetwork.runNetwork()
+        a1.get()
+        a2.get()
+
+        val ourAccounts = nodeA.startFlow(OurAccounts())
+        val theirAccounts = nodeB.startFlow(OurAccounts())
+        mockNetwork.runNetwork()
+
+        val s1 = nodeA.startFlow(ShareAccountInfo(ourAccounts.get().single(), listOf(partyB)))
+        val s2 = nodeB.startFlow(ShareAccountInfo(theirAccounts.get().single(), listOf(partyA)))
+        mockNetwork.runNetwork()
+        s1.get()
+        s2.get()
         //  Setup Game
-        val futureWithGameState = nodeA.startFlow(StartGameFlow(partyB.name.toString(), partyA.name.toString()))
+        val futureWithGameState = nodeB.startFlow(StartGameFlow(partyB.name.toString(), partyA.name.toString()))
         mockNetwork.runNetwork()
         val gameId = futureWithGameState.get()
         var boardState = getBoardState(nodeA)
-        assertEquals(partyA, boardState.getCurrentPlayerParty())
-        assert(!BoardContract.BoardUtils.isGameOver(boardState))
-
-        // Move #1
-        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyA.name.toString(), partyB.name.toString(), 0, 0)
         assertEquals(partyB, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
+        // Move #1
+        boardState = makeMoveAndGetNewBoardState(nodeB, gameId, partyB.name.toString(), partyA.name.toString(), 0, 0)
+        assertEquals(partyA, boardState.getCurrentPlayerParty())
+        assert(!BoardContract.BoardUtils.isGameOver(boardState))
+
         // Move #2
-        val future = nodeA.startFlow(SubmitTurnFlow(gameId, partyA.name.toString(), partyB.name.toString(), 0, 1))
+        val future = nodeB.startFlow(SubmitTurnFlow(gameId, partyB.name.toString(), partyA.name.toString(), 0, 1))
         mockNetwork.runNetwork()
 
         var exception = Exception()
@@ -327,26 +395,43 @@ class EndGameIntegrationTest {
 
     @Test
     fun `invalid index`() {
+
         val partyA = nodeA.info.chooseIdentity()
         val partyB = nodeB.info.chooseIdentity()
 
+        val a1 = nodeA.startFlow(CreateAccount(partyA.name.toString()))
+        val a2 = nodeB.startFlow(CreateAccount(partyB.name.toString()))
+        mockNetwork.runNetwork()
+        a1.get()
+        a2.get()
+
+        val ourAccounts = nodeA.startFlow(OurAccounts())
+        val theirAccounts = nodeB.startFlow(OurAccounts())
+        mockNetwork.runNetwork()
+
+        val s1 = nodeA.startFlow(ShareAccountInfo(ourAccounts.get().single(), listOf(partyB)))
+        val s2 = nodeB.startFlow(ShareAccountInfo(theirAccounts.get().single(), listOf(partyA)))
+        mockNetwork.runNetwork()
+        s1.get()
+        s2.get()
+
         // Setup Game
-        val futureWithGameState = nodeA.startFlow(StartGameFlow(partyB.name.toString(), partyA.name.toString()))
+        val futureWithGameState = nodeB.startFlow(StartGameFlow(partyB.name.toString(), partyA.name.toString()))
         mockNetwork.runNetwork()
         var boardState = getBoardState(nodeA)
         val gameId = futureWithGameState.get()
         //assertEquals(boardState.playerO, partyA)
         //assertEquals(boardState.playerX, partyB)
-        assertEquals(partyA, boardState.getCurrentPlayerParty())
-        assert(!BoardContract.BoardUtils.isGameOver(boardState))
-
-        // Move #1
-        boardState = makeMoveAndGetNewBoardState(nodeA, gameId, partyA.name.toString(), partyB.name.toString(), 0, 0)
         assertEquals(partyB, boardState.getCurrentPlayerParty())
         assert(!BoardContract.BoardUtils.isGameOver(boardState))
 
+        // Move #1
+        boardState = makeMoveAndGetNewBoardState(nodeB, gameId, partyB.name.toString(), partyA.name.toString(), 0, 0)
+        assertEquals(partyA, boardState.getCurrentPlayerParty())
+        assert(!BoardContract.BoardUtils.isGameOver(boardState))
+
         // Move #2
-        val future = nodeB.startFlow(SubmitTurnFlow(gameId, partyA.name.toString(), partyB.name.toString(), 0, 3))
+        val future = nodeA.startFlow(SubmitTurnFlow(gameId, partyA.name.toString(), partyB.name.toString(), 0, 3))
         mockNetwork.runNetwork()
 
         var exception = Exception()
